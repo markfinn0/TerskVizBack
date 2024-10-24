@@ -1,0 +1,48 @@
+package lambda.chat.chatviz;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import com.amazonaws.services.lambda.runtime.Context;
+import com.amazonaws.services.lambda.runtime.RequestHandler;
+import java.util.Map;
+
+public class ChatCall implements RequestHandler<Map<String, String>, String> {
+
+    @Override
+    public String handleRequest(Map<String, String> input, Context context) {
+        String userInput = input.get("userInput");
+        String response;
+        try {
+            MistralConnection mistral = new MistralConnection("Testando");
+            response = mistral.taskEvaluation();
+        } catch (Exception e) {
+            response = "Erro: " + e.getMessage();
+        }
+        return response;
+    }
+    
+    public static void main(String[] args) {
+        String response;
+        try {
+            MistralConnection mistral = new MistralConnection("Testando");
+            response = mistral.taskEvaluation();
+        } catch (Exception e) {
+            response = "Erro: " + e.getMessage();
+        }
+
+        // Criar um arquivo temporário para armazenar a resposta
+        try {
+            File tempFile = File.createTempFile("response", ".txt");
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(tempFile))) {
+                writer.write(response);
+            }
+            
+            // Abrir o CMD e exibir o conteúdo do arquivo
+            String command = "cmd /c start cmd.exe /k type " + tempFile.getAbsolutePath();
+            Runtime.getRuntime().exec(command);
+        } catch (IOException e) {
+            System.err.println("Erro ao criar ou abrir o CMD: " + e.getMessage());
+        }
+    }
+}

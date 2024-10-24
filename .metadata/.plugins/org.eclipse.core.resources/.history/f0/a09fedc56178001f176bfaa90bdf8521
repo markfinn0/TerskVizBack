@@ -1,0 +1,19 @@
+package lambda.chat.chatviz;
+
+import com.amazonaws.services.lambda.runtime.Context;
+import com.amazonaws.services.lambda.runtime.RequestHandler;
+
+public class ChatCall implements RequestHandler<String, String> {
+
+    @Override
+    public String handleRequest(String userInput, Context context) {
+        String response;
+        try {
+            MistralConnection mistral = new MistralConnection(userInput);
+            response = mistral.taskEvaluation();
+        } catch (Exception e) {
+            response = "Erro: " + e.getMessage();
+        }
+        return response;
+    }
+}

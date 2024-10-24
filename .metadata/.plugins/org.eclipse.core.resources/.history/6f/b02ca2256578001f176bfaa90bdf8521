@@ -1,0 +1,113 @@
+package lambda.chat.chatviz;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.s3.model.S3Object;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.ArrayList;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+
+import java.io.InputStream;
+import java.io.StringWriter;
+import java.util.ArrayList;
+
+public final class MistralConnection {
+
+    private String text;
+    private ArrayList<Object> embedding;
+
+    public MistralConnection(String text) {
+        this.text = text;
+    }
+
+    public MistralConnection(ArrayList<Object> embedding) {
+        this.embedding = embedding;
+    }
+    
+    public String addPrompt(String promptText) throws Exception {
+		 String bucketName = "seu-bucket"; // Substitua pelo nome do seu bucket
+	     String objectKey = "prompt_to_mistral.xml"; // Substitua pela chave do objeto
+	
+	     AmazonS3 s3Client = AmazonS3ClientBuilder.defaultClient();
+	     S3Object s3Object = s3Client.getObject(bucketName, objectKey);
+	     InputStream xmlInputStream = s3Object.getObjectContent();
+	
+	     DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+	     DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+        DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+        DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+
+        Document doc;
+        try {
+            doc = dBuilder.parse(xmlFile);
+            doc.getDocumentElement().normalize();
+        } catch (Exception e) {
+            throw new Exception("Erro ao carregar o documento XML: " + e.getMessage());
+        }
+
+        Element newPrompt = doc.createElement("prompt");
+        newPrompt.setTextContent(promptText); 
+
+        doc.getDocumentElement().appendChild(newPrompt);
+        
+        TransformerFactory transformerFactory = TransformerFactory.newInstance();
+        Transformer transformer = transformerFactory.newTransformer();
+        transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+        transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no");
+
+        java.io.StringWriter writer = new java.io.StringWriter();
+        StreamResult result = new StreamResult(writer);
+        DOMSource source = new DOMSource(doc);
+        transformer.transform(source, result);
+
+        String safePromptText = writer.toString().trim().replaceAll("[\\r\\n]+", "").replace("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>", "").replaceAll("[ ]+", " ");
+
+
+        return safePromptText;
+    }
+
+    public String taskEvaluation() throws Exception {
+        String url = "https://api.mistral.ai/v1/chat/completions";
+        
+        HttpClient client = HttpClient.newHttpClient();
+        
+        String requestBody = "{\n" +
+                "    \"model\": \"mistral-large-latest\",\n" +
+                "    \"messages\": [{\"role\": \"user\", \"content\": \"" +addPrompt(this.text)+
+                "\"}]\n" +
+                "}";
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .header("Authorization", "Bearer j06isnvg1AsoVlZKQw5tolrsMtULddZA")
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                .build();
+
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        if (response.statusCode() == 200) {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode jsonResponse = mapper.readTree(response.body());
+            String message = jsonResponse.get("choices").get(0).get("message").get("content").asText();
+            return message;
+        } else {
+            return "Nao foi possivel conversar com o Tersk "+response.statusCode();
+        }
+    }
+    
+}
